@@ -19,8 +19,8 @@ from teams import (
     AIOptions,
     Application,
     ApplicationOptions,
-    OpenAIPlanner,
-    OpenAIPlannerOptions,
+    AzureOpenAIPlanner,
+    AzureOpenAIPlannerOptions,
     ActionTypes,
 )
 
@@ -44,10 +44,11 @@ app = Application[AppTurnState](
         ),
         ai=AIOptions(
             prompt="chatGPT",
-            planner=OpenAIPlanner(
-                OpenAIPlannerOptions(
+            planner=AzureOpenAIPlanner(
+                AzureOpenAIPlannerOptions(
+                    endpoint=config.endpoint,
                     api_key=config.open_ai_key,
-                    default_model="gpt-3.5-turbo",
+                    default_model="gpt-35",
                     prompt_folder=f"{os.getcwd()}/src/prompts",
                 )
             ),

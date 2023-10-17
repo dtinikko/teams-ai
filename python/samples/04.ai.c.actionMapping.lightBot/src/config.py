@@ -13,3 +13,4 @@ class Config:
     app_id = os.environ.get("MicrosoftAppId", "")
     app_password = os.environ.get("MicrosoftAppPassword", "")
     open_ai_key = os.environ.get("OpenAIKey", "")
+    endpoint = os.environ.get("Endpoint", "")
