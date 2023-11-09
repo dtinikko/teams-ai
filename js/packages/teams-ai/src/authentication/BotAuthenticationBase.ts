@@ -1,13 +1,7 @@
 /* eslint-disable security/detect-object-injection */
 import {
-    // Dialog,
-    DialogSet,
-    DialogState,
     DialogTurnResult,
     DialogTurnStatus,
-    OAuthPrompt,
-    OAuthPromptSettings,
-    // WaterfallDialog
 } from 'botbuilder-dialogs';
 import { DefaultTurnState } from '../DefaultTurnStateManager';
 import { TurnState } from '../TurnState';
@@ -15,24 +9,13 @@ import { Application } from '../Application';
 import {
     ActivityTypes,
     MemoryStorage,
-    TeamsSSOTokenExchangeMiddleware,
     TurnContext,
     Storage,
     verifyStateOperationName,
     tokenExchangeOperationName,
     TokenResponse
 } from 'botbuilder';
-import { TurnStateProperty } from '../TurnStateProperty';
 import { AuthError } from './Authentication';
-import { TeamsSsoPrompt, TeamsSsoPromptSettings } from './TeamsBotSsoPrompt';
-
-/**
- * @internal
- */
-interface OAuthPromptResult {
-    connectionName: string;
-    token: string;
-}
 
 /**
  * @internal
@@ -45,36 +28,20 @@ interface UserAuthState {
 /**
  * @internal
  */
-export class BotAuthentication<TState extends TurnState = DefaultTurnState> {
-    private _prompt: OAuthPrompt | TeamsSsoPrompt;
-    private _storage: Storage;
-    // private _dedupStorageKeys: string[] = [];
+export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTurnState> {
+    protected _storage: Storage;
     private _userSignInSuccessHandler?: (context: TurnContext, state: TState) => Promise<void>;
     private _userSignInFailureHandler?: (context: TurnContext, state: TState, error: AuthError) => Promise<void>;
     private _settingName: string;
 
     public constructor(
         app: Application<TState>,
-        promptSettings: OAuthPromptSettings | TeamsSsoPromptSettings,
         settingName: string,
         storage?: Storage
     ) {
-        // Create OAuthPrompt
-        if (this.isOAuthPromptSettings(promptSettings)) {
-            this._prompt = new OAuthPrompt('OAuthPrompt', promptSettings);
-        } else {
-            this._prompt = new TeamsSsoPrompt('TeamsSsoPrompt', promptSettings);
-        }
         this._settingName = settingName;
 
         this._storage = storage || new MemoryStorage();
-
-        // Handles deduplication of token exchange event when using SSO with Bot Authentication
-        if (this.isOAuthPromptSettings(promptSettings)) {
-            app.adapter.use(new FilteredTeamsSSOTokenExchangeMiddleware(this._storage, promptSettings.connectionName));
-        } else {
-
-        }
 
         // Add application routes to handle OAuth callbacks
         app.addRoute(
@@ -200,54 +167,11 @@ export class BotAuthentication<TState extends TurnState = DefaultTurnState> {
         }
     }
 
-    public async runDialog(
+    public abstract runDialog(
         context: TurnContext,
         state: TState,
         dialogStateProperty: string
-    ): Promise<DialogTurnResult<OAuthPromptResult>> {
-        if (this._prompt instanceof OAuthPrompt) {
-            const accessor = new TurnStateProperty<DialogState>(state, 'conversation', dialogStateProperty);
-            const dialogSet = new DialogSet(accessor);
-            dialogSet.add(this._prompt);
-            const dialogContext = await dialogSet.createContext(context);
-            let results = await dialogContext.continueDialog();
-            if (results.status === DialogTurnStatus.empty) {
-                results = await dialogContext.beginDialog(this._prompt.id);
-            }
-            return results;
-        } else {
-            return await this.runTeamsSsoPrompt(context, state, dialogStateProperty);
-        }
-    }
-
-    public async runTeamsSsoPrompt(
-        context: TurnContext,
-        state: TState,
-        dialogStateProperty: string
-    ): Promise<DialogTurnResult<TokenResponse>> {
-        const accessor = new TurnStateProperty<DialogState>(state, 'conversation', dialogStateProperty);
-        const dialogSet = new DialogSet(accessor);
-        dialogSet.add(this._prompt);
-        // dialogSet.add(new WaterfallDialog("SSO", [
-        //     async (step) => {
-        //         return await step.beginDialog(this._prompt.id);
-        //     },
-        //     async (step) => {
-        //         // dedup the token exchange event
-        //         if (await this.shouldDedup(context)) {
-        //             return Dialog.EndOfTurn;
-        //         }
-        //         return await step.endDialog(step.result);
-        //     }
-        // ]));
-        const dialogContext = await dialogSet.createContext(context);
-        let results = await dialogContext.continueDialog();
-        if (results.status === DialogTurnStatus.empty) {
-            // results = await dialogContext.beginDialog("SSO");
-            results = await dialogContext.beginDialog(this._prompt.id);
-        }
-        return results;
-    }
+    ): Promise<DialogTurnResult<TokenResponse>>;
 
     public deleteAuthFlowState(context: TurnContext, state: TState) {
         // Delete user auth state
@@ -270,54 +194,6 @@ export class BotAuthentication<TState extends TurnState = DefaultTurnState> {
     public getUserDialogStatePropertyName(context: TurnContext): string {
         return `__${context.activity.from.id}:${this._settingName}:DialogState__`;
     }
-
-    private isOAuthPromptSettings(settings: OAuthPromptSettings | TeamsSsoPromptSettings): settings is OAuthPromptSettings {
-        return (settings as OAuthPromptSettings).connectionName !== undefined;
-    }
-
-    // private async shouldDedup(context: TurnContext): Promise<boolean> {
-    //     const storeItem = {
-    //         eTag: context.activity.value.id,
-    //     };
-
-    //     const key = this.getStorageKey(context);
-    //     const storeItems = { [key]: storeItem };
-
-    //     try {
-    //         await this._storage.write(storeItems);
-    //         this._dedupStorageKeys.push(key);
-    //     } catch (err) {
-    //         if (err instanceof Error && err.message.indexOf("eTag conflict")) {
-    //             return true;
-    //         }
-    //         throw err;
-    //     }
-    //     return false;
-    // }
-
-    // private getStorageKey(context: TurnContext): string {
-    //     if (!context || !context.activity || !context.activity.conversation) {
-    //         throw new Error("Invalid context, can not get storage key!");
-    //     }
-    //     const activity = context.activity;
-    //     const channelId = activity.channelId;
-    //     const conversationId = activity.conversation.id;
-    //     if (
-    //         activity.type !== ActivityTypes.Invoke ||
-    //         activity.name !== tokenExchangeOperationName
-    //     ) {
-    //         throw new Error(
-    //             "TokenExchangeState can only be used with Invokes of signin/tokenExchange."
-    //         );
-    //     }
-    //     const value = activity.value;
-    //     if (!value || !value.id) {
-    //         throw new Error(
-    //             "Invalid signin/tokenExchange. Missing activity.value.id."
-    //         );
-    //     }
-    //     return `${channelId}/${conversationId}/${value.id}`;
-    // }
 }
 
 /**
@@ -350,26 +226,4 @@ export function deleteTokenFromState<TState extends TurnState = DefaultTurnState
     }
 
     delete state.temp.value.authTokens[settingName];
-}
-
-/**
- * @internal
- * SSO Token Exchange Middleware for Teams that filters based on the connection name.
- */
-class FilteredTeamsSSOTokenExchangeMiddleware extends TeamsSSOTokenExchangeMiddleware {
-    private readonly _oauthConnectionName: string;
-
-    public constructor(storage: Storage, oauthConnectionName: string) {
-        super(storage, oauthConnectionName);
-        this._oauthConnectionName = oauthConnectionName;
-    }
-
-    public async onTurn(context: TurnContext, next: () => Promise<void>): Promise<void> {
-        // If connection name matches then continue to the Teams SSO Token Exchange Middleware.
-        if (context.activity.value?.connectionName == this._oauthConnectionName) {
-            await super.onTurn(context, next);
-        } else {
-            await next();
-        }
-    }
 }

@@ -9,21 +9,27 @@
 
 import { Storage, TurnContext } from 'botbuilder';
 import { OAuthPromptSettings } from 'botbuilder-dialogs';
+import { ConfidentialClientApplication } from '@azure/msal-node';
 import { TurnState } from '../TurnState';
 import { DefaultTurnState } from '../DefaultTurnStateManager';
 import { Application, Selector } from '../Application';
-import { MessagingExtensionAuthentication } from './MessagingExtensionAuthentication';
-import { BotAuthentication, deleteTokenFromState, setTokenInState } from './BotAuthentication';
+import { MessagingExtensionAuthenticationBase } from './MessagingExtensionAuthenticationBase';
+import { BotAuthenticationBase, deleteTokenFromState, setTokenInState } from './BotAuthenticationBase';
 import * as UserTokenAccess from './UserTokenAccess';
 import { TeamsSsoPromptSettings } from './TeamsBotSsoPrompt';
+import { OAuthPromptBotAuthentication } from './OAuthPromptBotAuthentication';
+import { TeamsSsoBotAuthentication } from './TeamsSsoBotAuthentication';
+import { OAuthPromptMessagingExtensionAuthentication } from './OAuthPromptMessagingExtensionAuthentication';
+import { TeamsSsoMessagingExtensionAuthentication } from './TeamsSsoMessagingExtensionAuthentication';
 
 /**
  * User authentication service.
  */
 export class Authentication<TState extends TurnState = DefaultTurnState> {
-    private readonly _messagingExtensionAuth: MessagingExtensionAuthentication;
-    private readonly _botAuth: BotAuthentication<TState>;
+    private readonly _messagingExtensionAuth: MessagingExtensionAuthenticationBase;
+    private readonly _botAuth: BotAuthenticationBase<TState>;
     private readonly _name: string;
+    private readonly _msal: ConfidentialClientApplication;
 
     public readonly settings: OAuthPromptSettings | TeamsSsoPromptSettings;
 
@@ -33,21 +39,28 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
      * @param {string} name - The name of the connection.
      * @param {OAuthPromptSettings} settings - Authentication settings.
      * @param {Storage} storage - A storage instance otherwise Memory Storage is used.
-     * @param {MessagingExtensionAuthentication} messagingExtensionsAuth - Handles messaging extension flow authentication.
-     * @param {BotAuthentication} botAuth - Handles bot-flow authentication.
+     * @param {MessagingExtensionAuthenticationBase} messagingExtensionsAuth - Handles messaging extension flow authentication.
+     * @param {BotAuthenticationBase} botAuth - Handles bot-flow authentication.
      */
     constructor(
         app: Application<TState>,
         name: string,
         settings: OAuthPromptSettings | TeamsSsoPromptSettings,
         storage?: Storage,
-        messagingExtensionsAuth?: MessagingExtensionAuthentication,
-        botAuth?: BotAuthentication<TState>
+        messagingExtensionsAuth?: MessagingExtensionAuthenticationBase,
+        botAuth?: BotAuthenticationBase<TState>
     ) {
         this.settings = settings;
         this._name = name;
-        this._messagingExtensionAuth = messagingExtensionsAuth || new MessagingExtensionAuthentication();
-        this._botAuth = botAuth || new BotAuthentication(app, settings, this._name, storage);
+        
+        if (this.isOAuthPromptSettings(settings)) {
+            this._botAuth = botAuth || new OAuthPromptBotAuthentication(app, settings, this._name, storage);
+            this._messagingExtensionAuth = messagingExtensionsAuth || new OAuthPromptMessagingExtensionAuthentication(settings);
+        } else {
+            this._botAuth = botAuth || new TeamsSsoBotAuthentication(app, settings, this._name, storage);
+            this._messagingExtensionAuth = messagingExtensionsAuth || new TeamsSsoMessagingExtensionAuthentication(settings);
+        }
+        
     }
 
     /**
@@ -99,11 +112,13 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
      * @returns {string | undefined} The token string or undefined if the user is not signed in.
      */
     public async isUserSignedIn(context: TurnContext): Promise<string | undefined> {
-        // const tokenResponse = await UserTokenAccess.getUserToken(context, this.settings as OAuthPromptSettings, '');
+        if (this.isOAuthPromptSettings(this.settings)) {
+            const tokenResponse = await UserTokenAccess.getUserToken(context, this.settings as OAuthPromptSettings, '');
 
-        // if (tokenResponse && tokenResponse.token) {
-        //     return tokenResponse.token;
-        // }
+            if (tokenResponse && tokenResponse.token) {
+                return tokenResponse.token;
+            }
+        }
 
         return undefined;
     }
@@ -130,6 +145,10 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
         handler: (context: TurnContext, state: TState, error: AuthError) => Promise<void>
     ) {
         this._botAuth.onUserSignInFailure(handler);
+    }
+
+    private isOAuthPromptSettings(settings: OAuthPromptSettings | TeamsSsoPromptSettings): settings is OAuthPromptSettings {
+        return (settings as OAuthPromptSettings).connectionName !== undefined;
     }
 }
 
