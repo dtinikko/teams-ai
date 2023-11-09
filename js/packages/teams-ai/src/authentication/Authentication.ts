@@ -15,6 +15,7 @@ import { Application, Selector } from '../Application';
 import { MessagingExtensionAuthentication } from './MessagingExtensionAuthentication';
 import { BotAuthentication, deleteTokenFromState, setTokenInState } from './BotAuthentication';
 import * as UserTokenAccess from './UserTokenAccess';
+import { TeamsSsoPromptSettings } from './TeamsBotSsoPrompt';
 
 /**
  * User authentication service.
@@ -24,7 +25,7 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
     private readonly _botAuth: BotAuthentication<TState>;
     private readonly _name: string;
 
-    public readonly settings: OAuthPromptSettings;
+    public readonly settings: OAuthPromptSettings | TeamsSsoPromptSettings;
 
     /**
      * Creates a new instance of the `Authentication` class.
@@ -38,7 +39,7 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
     constructor(
         app: Application<TState>,
         name: string,
-        settings: OAuthPromptSettings,
+        settings: OAuthPromptSettings | TeamsSsoPromptSettings,
         storage?: Storage,
         messagingExtensionsAuth?: MessagingExtensionAuthentication,
         botAuth?: BotAuthentication<TState>
@@ -89,7 +90,7 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
         this._botAuth.deleteAuthFlowState(context, state);
 
         // Signout flow is agnostic of the activity type.
-        return UserTokenAccess.signOutUser(context, this.settings);
+        return UserTokenAccess.signOutUser(context, this.settings as OAuthPromptSettings);
     }
 
     /**
@@ -98,11 +99,11 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
      * @returns {string | undefined} The token string or undefined if the user is not signed in.
      */
     public async isUserSignedIn(context: TurnContext): Promise<string | undefined> {
-        const tokenResponse = await UserTokenAccess.getUserToken(context, this.settings, '');
+        // const tokenResponse = await UserTokenAccess.getUserToken(context, this.settings as OAuthPromptSettings, '');
 
-        if (tokenResponse && tokenResponse.token) {
-            return tokenResponse.token;
-        }
+        // if (tokenResponse && tokenResponse.token) {
+        //     return tokenResponse.token;
+        // }
 
         return undefined;
     }
@@ -256,7 +257,7 @@ export interface AuthenticationOptions {
      * The authentication settings.
      * Key uniquely identifies the connection string.
      */
-    settings: { [key: string]: OAuthPromptSettings };
+    settings: { [key: string]: OAuthPromptSettings | TeamsSsoPromptSettings };
 
     /**
      * Describes the setting the bot should use if the user does not specify a setting name.

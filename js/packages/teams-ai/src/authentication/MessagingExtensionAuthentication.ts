@@ -2,18 +2,19 @@ import { ActivityTypes, InvokeResponse, TokenResponse, TurnContext } from 'botbu
 import { FETCH_TASK_INVOKE_NAME, QUERY_INVOKE_NAME, QUERY_LINK_INVOKE_NAME } from '../MessageExtensions';
 import * as UserTokenAccess from './UserTokenAccess';
 import { OAuthPromptSettings } from 'botbuilder-dialogs';
+import { TeamsSsoPromptSettings } from './TeamsBotSsoPrompt';
 
 /**
  * @internal
  */
 export class MessagingExtensionAuthentication {
-    public async authenticate(context: TurnContext, settings: OAuthPromptSettings): Promise<string | undefined> {
+    public async authenticate(context: TurnContext, settings: OAuthPromptSettings | TeamsSsoPromptSettings): Promise<string | undefined> {
         const authObj = context.activity.value.authentication;
 
         // Token Exchange
         if (authObj && authObj.token) {
             // Message extension token exchange invoke activity
-            const isTokenExchangable = await this.isTokenExchangeable(context, settings);
+            const isTokenExchangable = await this.isTokenExchangeable(context, settings as OAuthPromptSettings);
             if (!isTokenExchangable) {
                 await context.sendActivity({
                     value: { status: 412 } as InvokeResponse,
@@ -22,7 +23,7 @@ export class MessagingExtensionAuthentication {
 
                 return undefined;
             } else {
-                const tokenExchangeResponse = await this.exchangeToken(context, settings);
+                const tokenExchangeResponse = await this.exchangeToken(context, settings as OAuthPromptSettings);
                 if (tokenExchangeResponse && tokenExchangeResponse.token) {
                     return tokenExchangeResponse.token;
                 }
@@ -34,13 +35,13 @@ export class MessagingExtensionAuthentication {
         // When the Bot Service Auth flow completes, the query.State will contain a magic code used for verification.
         const magicCode = value.state && Number.isInteger(Number(value.state)) ? value.state : '';
 
-        const tokenResponse = await UserTokenAccess.getUserToken(context, settings, magicCode);
+        const tokenResponse = await UserTokenAccess.getUserToken(context, settings as OAuthPromptSettings, magicCode);
 
         if (this.isValidActivity(context) && (!tokenResponse || !tokenResponse.token)) {
             // There is no token, so the user has not signed in yet.
             // Retrieve the OAuth Sign in Link to use in the MessagingExtensionResult Suggested Actions
 
-            const signInResource = await UserTokenAccess.getSignInResource(context, settings);
+            const signInResource = await UserTokenAccess.getSignInResource(context, settings as OAuthPromptSettings);
             const signInLink = signInResource.signInLink;
             // Do 'silentAuth' if this is a composeExtension/query request otherwise do normal `auth` flow.
             const authType = context.activity.name === QUERY_INVOKE_NAME ? 'silentAuth' : 'auth';

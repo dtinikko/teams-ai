@@ -14,7 +14,7 @@ import {
     ConfigurationBotFrameworkAuthentication,
     ConfigurationBotFrameworkAuthenticationOptions,
     MemoryStorage,
-    TurnContext
+    TurnContext,
 } from 'botbuilder';
 
 // Read botFilePath and botFileSecret from .env file.
@@ -62,7 +62,7 @@ server.listen(process.env.port || process.env.PORT || 3978, () => {
     console.log('\nTo test your bot in Teams, sideload the app manifest.json within Teams Apps.');
 });
 
-import { ApplicationBuilder, AuthError, DefaultTurnState } from '@microsoft/teams-ai';
+import { ApplicationBuilder, AuthError, DefaultTurnState, TeamsSsoPromptSettings } from '@microsoft/teams-ai';
 
 interface ConversationState {
     count: number;
@@ -76,9 +76,15 @@ const app = new ApplicationBuilder<ApplicationTurnState>()
     .withAuthentication(adapter, {
         settings: {
             graph: {
-                connectionName: process.env.SecondConnectionName ?? '',
-                title: 'Sign in',
-                text: 'Please sign in to use the bot.',
+                scopes: ['User.Read'],
+                msalConfig: {
+                    auth: {
+                        clientId: process.env.AAD_APP_CLIENT_ID!,
+                        clientSecret: process.env.AAD_APP_CLIENT_SECRET!,
+                        authority: process.env.AAD_APP_OAUTH_AUTHORITY_HOST + '/' + process.env.AAD_APP_TENANT_ID,
+                    }
+                },
+                signInLink: "https://"+process.env.BOT_DOMAIN + "/auth-start.html",
                 endOnInvalidMessage: true
             }
         }
@@ -133,3 +139,11 @@ server.post('/api/messages', async (req, res) => {
         await app.run(context);
     });
 });
+
+server.get(
+    "/auth-:name(start|end).html",
+    restify.plugins.serveStatic({
+      directory: path.join(__dirname, "public"),
+    })
+  );
+  

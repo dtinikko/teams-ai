@@ -28,3 +28,4 @@ export * from './TestPlanner';
 export * from './TestPromptManager';
 export * from './TurnState';
 export * from './TurnStateProperty';
+export * from './authentication/TeamsBotSsoPrompt';
