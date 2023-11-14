@@ -7,9 +7,9 @@
  * Licensed under the MIT License.
  */
 
-import { Storage, TurnContext } from 'botbuilder';
+import { Storage, TeamsChannelAccount, TeamsInfo, TurnContext } from 'botbuilder';
 import { OAuthPromptSettings } from 'botbuilder-dialogs';
-import { ConfidentialClientApplication } from '@azure/msal-node';
+import { AuthenticationResult, ConfidentialClientApplication } from '@azure/msal-node';
 import { TurnState } from '../TurnState';
 import { DefaultTurnState } from '../DefaultTurnStateManager';
 import { Application, Selector } from '../Application';
@@ -29,7 +29,7 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
     private readonly _messagingExtensionAuth: MessagingExtensionAuthenticationBase;
     private readonly _botAuth: BotAuthenticationBase<TState>;
     private readonly _name: string;
-    private readonly _msal: ConfidentialClientApplication;
+    private readonly _msal?: ConfidentialClientApplication;
 
     public readonly settings: OAuthPromptSettings | TeamsSsoPromptSettings;
 
@@ -57,8 +57,9 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
             this._botAuth = botAuth || new OAuthPromptBotAuthentication(app, settings, this._name, storage);
             this._messagingExtensionAuth = messagingExtensionsAuth || new OAuthPromptMessagingExtensionAuthentication(settings);
         } else {
-            this._botAuth = botAuth || new TeamsSsoBotAuthentication(app, settings, this._name, storage);
-            this._messagingExtensionAuth = messagingExtensionsAuth || new TeamsSsoMessagingExtensionAuthentication(settings);
+            this._msal = new ConfidentialClientApplication(settings.msalConfig);
+            this._botAuth = botAuth || new TeamsSsoBotAuthentication(app, settings, this._name, this._msal, storage);
+            this._messagingExtensionAuth = messagingExtensionsAuth || new TeamsSsoMessagingExtensionAuthentication(settings, this._msal);
         }
         
     }
@@ -99,11 +100,18 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
      * @param {TState} state - Application state.
      * @returns {Promise<void>} A Promise representing the asynchronous operation.
      */
-    public signOutUser(context: TurnContext, state: TState): Promise<void> {
+    public async signOutUser(context: TurnContext, state: TState): Promise<void> {
         this._botAuth.deleteAuthFlowState(context, state);
 
         // Signout flow is agnostic of the activity type.
-        return UserTokenAccess.signOutUser(context, this.settings as OAuthPromptSettings);
+        if (this.isOAuthPromptSettings(this.settings)) {
+            return UserTokenAccess.signOutUser(context, this.settings as OAuthPromptSettings);
+        } else {
+            const loginHint = await this.getLoginHint(context);
+            if (loginHint) {
+                return this.removeTokenFromMsalCache(loginHint);
+            }
+        }
     }
 
     /**
@@ -117,6 +125,15 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
 
             if (tokenResponse && tokenResponse.token) {
                 return tokenResponse.token;
+            }
+        } else {
+            const loginHint = await this.getLoginHint(context);
+            if (loginHint) {
+                const tokenResponse = await this.acquireTokenFromMsalCache(loginHint ?? '');
+
+                if (tokenResponse && tokenResponse.accessToken) {
+                    return tokenResponse.accessToken;
+                }
             }
         }
 
@@ -149,6 +166,49 @@ export class Authentication<TState extends TurnState = DefaultTurnState> {
 
     private isOAuthPromptSettings(settings: OAuthPromptSettings | TeamsSsoPromptSettings): settings is OAuthPromptSettings {
         return (settings as OAuthPromptSettings).connectionName !== undefined;
+    }
+
+    private async getLoginHint(context: TurnContext): Promise<string | undefined> {
+        const account: TeamsChannelAccount = await TeamsInfo.getMember(
+            context,
+            context.activity.from.id
+        );
+        return account.userPrincipalName;
+    }
+
+    private async acquireTokenFromMsalCache(
+        loginHint: string
+    ): Promise<AuthenticationResult | null> {
+        try {
+            const settings = this.settings as TeamsSsoPromptSettings;
+            const accounts = await this._msal!.getTokenCache().getAllAccounts();
+            const account = accounts.find((account) => account.username === loginHint);
+            if (account) {
+                const silentRequest = {
+                    account: account,
+                    scopes: settings.scopes,
+                };
+                return await this._msal!.acquireTokenSilent(silentRequest);
+            }
+        } catch (error) {
+            return null;
+        }
+        return null;
+    }
+
+    private async removeTokenFromMsalCache(
+        loginHint: string
+    ): Promise<void> {
+        try {
+            const accounts = await this._msal!.getTokenCache().getAllAccounts();
+            const account = accounts.find((account) => account.username === loginHint);
+            if (account) {
+                await this._msal!.getTokenCache().removeAccount(account);
+            }
+        } catch (error) {
+            return;
+        }
+        return;
     }
 }
 

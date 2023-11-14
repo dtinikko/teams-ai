@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { DialogSet, DialogState, DialogTurnResult, DialogTurnStatus, OAuthPrompt, OAuthPromptSettings } from "botbuilder-dialogs";
+import { DialogContext, DialogSet, DialogState, DialogTurnResult, DialogTurnStatus, OAuthPrompt, OAuthPromptSettings } from "botbuilder-dialogs";
 import { Storage, TeamsSSOTokenExchangeMiddleware, TurnContext, TokenResponse } from "botbuilder";
 import { BotAuthenticationBase } from "./BotAuthenticationBase";
 import { Application } from "../Application";
@@ -27,15 +27,24 @@ export class OAuthPromptBotAuthentication<TState extends TurnState = DefaultTurn
     }
 
     public async runDialog(context: TurnContext, state: TState, dialogStateProperty: string): Promise<DialogTurnResult<TokenResponse>> {
-        const accessor = new TurnStateProperty<DialogState>(state, 'conversation', dialogStateProperty);
-        const dialogSet = new DialogSet(accessor);
-        dialogSet.add(this._prompt);
-        const dialogContext = await dialogSet.createContext(context);
+        const dialogContext = await this.createDialogContext(context, state, dialogStateProperty);
         let results = await dialogContext.continueDialog();
         if (results.status === DialogTurnStatus.empty) {
             results = await dialogContext.beginDialog(this._prompt.id);
         }
         return results;
+    }
+
+    public async continueDialog(context: TurnContext, state: TState, dialogStateProperty: string): Promise<DialogTurnResult<TokenResponse>> {
+        const dialogContext = await this.createDialogContext(context, state, dialogStateProperty);
+        return await dialogContext.continueDialog();
+    }
+
+    private async createDialogContext(context: TurnContext, state: TState, dialogStateProperty: string): Promise<DialogContext> {
+        const accessor = new TurnStateProperty<DialogState>(state, 'conversation', dialogStateProperty);
+        const dialogSet = new DialogSet(accessor);
+        dialogSet.add(this._prompt);
+        return await dialogSet.createContext(context);
     }
 }
 

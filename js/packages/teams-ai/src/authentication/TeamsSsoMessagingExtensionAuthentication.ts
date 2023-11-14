@@ -10,11 +10,9 @@ import { TeamsInfo } from "botbuilder";
 import { QUERY_INVOKE_NAME } from "../MessageExtensions";
 
 export class TeamsSsoMessagingExtensionAuthentication extends MessagingExtensionAuthenticationBase {
-    private msal: ConfidentialClientApplication;
 
-    public constructor(private readonly settings: TeamsSsoPromptSettings) {
+    public constructor(private readonly settings: TeamsSsoPromptSettings, private readonly msal: ConfidentialClientApplication) {
         super();
-        this.msal = new ConfidentialClientApplication(settings.msalConfig);
     }
 
     public override isValidActivity(context: TurnContext): boolean {

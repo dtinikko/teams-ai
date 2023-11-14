@@ -37,10 +37,11 @@ export class TeamsSsoPrompt extends Dialog {
     constructor(
         dialogId: string,
         settings: TeamsSsoPromptSettings,
+        msal: ConfidentialClientApplication
     ) {
         super(dialogId);
         this.settings = settings;
-        this.msal = new ConfidentialClientApplication(settings.msalConfig);
+        this.msal = msal;
 
         this.validateScopesType(settings.scopes);
     }

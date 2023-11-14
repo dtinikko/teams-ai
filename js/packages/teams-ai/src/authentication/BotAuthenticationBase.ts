@@ -131,7 +131,7 @@ export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTu
     public async handleSignInActivity(context: TurnContext, state: TState): Promise<void> {
         try {
             const userDialogStatePropertyName = this.getUserDialogStatePropertyName(context);
-            const result = await this.runDialog(context, state, userDialogStatePropertyName);
+            const result = await this.continueDialog(context, state, userDialogStatePropertyName);
 
             if (result.status === DialogTurnStatus.complete) {
                 // OAuthPrompt dialog should have sent an invoke response already.
@@ -168,6 +168,12 @@ export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTu
     }
 
     public abstract runDialog(
+        context: TurnContext,
+        state: TState,
+        dialogStateProperty: string
+    ): Promise<DialogTurnResult<TokenResponse>>;
+
+    public abstract continueDialog(
         context: TurnContext,
         state: TState,
         dialogStateProperty: string
