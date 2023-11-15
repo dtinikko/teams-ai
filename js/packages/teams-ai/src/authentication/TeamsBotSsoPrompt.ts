@@ -31,15 +31,18 @@ class TokenExchangeInvokeResponse {
 }
 
 export class TeamsSsoPrompt extends Dialog {
+    private settingName: string;
     private settings: TeamsSsoPromptSettings;
     private msal: ConfidentialClientApplication;
 
     constructor(
         dialogId: string,
+        settingName: string,
         settings: TeamsSsoPromptSettings,
         msal: ConfidentialClientApplication
     ) {
         super(dialogId);
+        this.settingName = settingName;
         this.settings = settings;
         this.msal = msal;
 
@@ -239,7 +242,7 @@ export class TeamsSsoPrompt extends Dialog {
         const signInLink = `${this.settings.signInLink}?scope=${scope}&clientId=${clientId}&tenantId=${tenantId}&loginHint=${loginHint}`;
 
         const tokenExchangeResource: TokenExchangeResource = {
-            id: uuidv4(),
+            id: `${uuidv4()}-${this.settingName}`,
         };
 
         return {

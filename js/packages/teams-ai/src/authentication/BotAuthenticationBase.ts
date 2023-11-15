@@ -11,9 +11,9 @@ import {
     MemoryStorage,
     TurnContext,
     Storage,
+    TokenResponse,
     verifyStateOperationName,
-    tokenExchangeOperationName,
-    TokenResponse
+    tokenExchangeOperationName
 } from 'botbuilder';
 import { AuthError } from './Authentication';
 
@@ -30,9 +30,9 @@ interface UserAuthState {
  */
 export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTurnState> {
     protected _storage: Storage;
+    protected _settingName: string;
     private _userSignInSuccessHandler?: (context: TurnContext, state: TState) => Promise<void>;
     private _userSignInFailureHandler?: (context: TurnContext, state: TState, error: AuthError) => Promise<void>;
-    private _settingName: string;
 
     public constructor(
         app: Application<TState>,
@@ -45,21 +45,14 @@ export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTu
 
         // Add application routes to handle OAuth callbacks
         app.addRoute(
-            (context) =>
-                Promise.resolve(
-                    context.activity.type === ActivityTypes.Invoke && context.activity.name === verifyStateOperationName
-                ),
+            this.verifyStateRouteSelector.bind(this),
             async (context, state) => {
                 await this.handleSignInActivity(context, state);
             },
             true
         );
         app.addRoute(
-            (context) =>
-                Promise.resolve(
-                    context.activity.type === ActivityTypes.Invoke &&
-                    context.activity.name === tokenExchangeOperationName
-                ),
+            this.tokenExchangeRouteSelector.bind(this),
             async (context, state) => {
                 await this.handleSignInActivity(context, state);
             },
@@ -167,18 +160,6 @@ export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTu
         }
     }
 
-    public abstract runDialog(
-        context: TurnContext,
-        state: TState,
-        dialogStateProperty: string
-    ): Promise<DialogTurnResult<TokenResponse>>;
-
-    public abstract continueDialog(
-        context: TurnContext,
-        state: TState,
-        dialogStateProperty: string
-    ): Promise<DialogTurnResult<TokenResponse>>;
-
     public deleteAuthFlowState(context: TurnContext, state: TState) {
         // Delete user auth state
         const userAuthStatePropertyName = this.getUserAuthStatePropertyName(context);
@@ -200,6 +181,27 @@ export abstract class BotAuthenticationBase<TState extends TurnState = DefaultTu
     public getUserDialogStatePropertyName(context: TurnContext): string {
         return `__${context.activity.from.id}:${this._settingName}:DialogState__`;
     }
+
+    protected async verifyStateRouteSelector(context: TurnContext): Promise<boolean> {
+        return context.activity.type === ActivityTypes.Invoke && context.activity.name === verifyStateOperationName;
+    }
+
+    protected async tokenExchangeRouteSelector(context: TurnContext): Promise<boolean> {
+        return context.activity.type === ActivityTypes.Invoke &&
+        context.activity.name === tokenExchangeOperationName;
+    }
+
+    public abstract runDialog(
+        context: TurnContext,
+        state: TState,
+        dialogStateProperty: string
+    ): Promise<DialogTurnResult<TokenResponse>>;
+
+    public abstract continueDialog(
+        context: TurnContext,
+        state: TState,
+        dialogStateProperty: string
+    ): Promise<DialogTurnResult<TokenResponse>>;
 }
 
 /**

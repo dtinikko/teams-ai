@@ -16,6 +16,7 @@ const SSO_DIALOG_ID = "_TeamsSsoDialog";
 
 export class TeamsSsoBotAuthentication<TState extends TurnState = DefaultTurnState> extends BotAuthenticationBase<TState> {
     private _prompt: TeamsSsoPrompt;
+    private _tokenExchangeIdRegex: RegExp;
 
     public constructor(
         app: Application<TState>,
@@ -26,7 +27,9 @@ export class TeamsSsoBotAuthentication<TState extends TurnState = DefaultTurnSta
     ) {
         super(app, settingName, storage);
 
-        this._prompt = new TeamsSsoPrompt('TeamsSsoPrompt', promptSettings, msal);
+        this._prompt = new TeamsSsoPrompt('TeamsSsoPrompt', settingName, promptSettings, msal);
+        this._tokenExchangeIdRegex = new RegExp(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}-${this._settingName}`);
+
         // Do not save state for duplicate token exchange events to avoid eTag conflicts
         app.turn("afterTurn", async (context, state) => {
             return state.temp.value.duplicateTokenExchange !== true;
@@ -45,6 +48,10 @@ export class TeamsSsoBotAuthentication<TState extends TurnState = DefaultTurnSta
     public async continueDialog(context: TurnContext, state: TState, dialogStateProperty: string): Promise<DialogTurnResult<TokenResponse>> {
         const dialogContext = await this.createSsoDialogContext(context, state, dialogStateProperty);
         return await dialogContext.continueDialog();
+    }
+
+    protected async tokenExchangeRouteSelector(context: TurnContext): Promise<boolean> {
+        return await super.tokenExchangeRouteSelector(context) && this._tokenExchangeIdRegex.test(context.activity.value.id);
     }
 
     private async createSsoDialogContext(context: TurnContext, state: TState, dialogStateProperty: string): Promise<DialogContext> {
