@@ -1,0 +1,80 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.15/MicrosoftTeams.schema.json",
+    "version": "1.0.0",
+    "manifestVersion": "1.15",
+    "id": "${{TEAMS_APP_ID}}",
+    "packageName": "com.package.name",
+    "name": {
+        "short": "Message Extension SSO-${{TEAMSFX_ENV}}",
+        "full": "Message Exension SSO"
+    },
+    "developer": {
+        "name": "Microsoft",
+        "mpnId": "",
+        "websiteUrl": "https://microsoft.com",
+        "privacyUrl": "https://privacy.microsoft.com/en-us/privacystatement",
+        "termsOfUseUrl": "https://www.microsoft.com/en-us/legal/terms-of-use"
+    },
+    "description": {
+        "short": "Example message extension with SSO",
+        "full": "Example message extension with SSO"
+    },
+    "icons": {
+        "outline": "outline.png",
+        "color": "color.png"
+    },
+    "accentColor": "#FFFFFF",
+    "composeExtensions": [
+        {
+            "botId": "${{BOT_ID}}",
+            "canUpdateConfiguration": true,
+            "commands": [
+                {
+                    "id": "searchQuery",
+                    "context": [
+                        "compose",
+                        "commandBox"
+                    ],
+                    "description": "Search users in your org",
+                    "title": "Search Users",
+                    "type": "query",
+                    "parameters": [
+                        {
+                            "name": "queryText",
+                            "title": "Query",
+                            "description": "Enter your search query",
+                            "inputType": "text"
+                        }
+                    ]
+                },
+                {
+                    "id": "signOutCommand",
+                    "type": "action",
+                    "title": "Sign Out",
+                    "description": "Sign out from authenticated services.",
+                    "initialRun": false,
+                    "fetchTask": true,
+                    "context": [
+                        "commandBox",
+                        "compose"
+                    ],
+                    "parameters": [
+                        {
+                            "name": "param",
+                            "title": "param",
+                            "description": ""
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "validDomains": [
+        "${{BOT_DOMAIN}}",
+        "*.botframework.com"
+    ],
+    "webApplicationInfo": {
+        "id": "${{BOT_ID}}",
+        "resource": "api://botid-${{BOT_ID}}"
+    }
+}
