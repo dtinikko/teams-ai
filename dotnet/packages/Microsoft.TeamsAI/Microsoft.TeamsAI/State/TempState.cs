@@ -25,6 +25,11 @@ namespace Microsoft.Teams.AI.State
         public const string HistoryKey = "history";
 
         /// <summary>
+        /// Name of the auth tokens property.
+        /// </summary>
+        public const string AuthTokensKey = "authTokens";
+
+        /// <summary>
         /// Creates a new instance of the <see cref="TempState"/> class.
         /// </summary>
         public TempState() : base()
@@ -61,6 +66,15 @@ namespace Microsoft.Teams.AI.State
         {
             get => Get<string>(HistoryKey)!;
             set => Set(HistoryKey, value);
+        }
+
+        /// <summary>
+        /// User authentication tokens
+        /// </summary>
+        public Dictionary<string, string> AuthTokens
+        {
+            get => Get<Dictionary<string, string>>(AuthTokensKey)!;
+            set => Set(AuthTokensKey, value);
         }
     }
 }
