@@ -1,4 +1,6 @@
 ﻿using Microsoft.Bot.Builder;
+using Microsoft.Bot.Builder.Dialogs;
+using Microsoft.Bot.Schema;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
 
@@ -10,6 +12,18 @@ namespace Microsoft.Teams.AI
     internal class OAuthAuthentication<TState> : IAuthentication<TState>
         where TState : TurnState, new()
     {
+        private OAuthPromptSettings _settings;
+        private OAuthMessageExtensionsAuthentication? _messageExtensionAuth;
+
+        /// <summary>
+        /// Initializes the class
+        /// </summary>
+        /// <param name="settings">The settings to initialize the class</param>
+        public OAuthAuthentication(OAuthPromptSettings settings)
+        {
+            _settings = settings;
+        }
+
         /// <summary>
         /// Initialize the authentication class
         /// </summary>
@@ -17,6 +31,17 @@ namespace Microsoft.Teams.AI
         /// <param name="name">The name of the authentication handler</param>
         /// <param name="storage">The storage to save turn state</param>
         public void Initialize(Application<TState> app, string name, IStorage? storage = null)
+        {
+            _messageExtensionAuth = new OAuthMessageExtensionsAuthentication(_settings.ConnectionName);
+        }
+
+        /// <summary>
+        /// Check if the user is signed, if they are then return the token.
+        /// </summary>
+        /// <param name="turnContext">The turn context.</param>
+        /// <param name="cancellationToken">The cancellation token</param>
+        /// <returns>The token if the user is signed. Otherwise null.</returns>
+        public Task<string?> IsUserSignedInAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
@@ -39,7 +64,7 @@ namespace Microsoft.Teams.AI
         /// <returns>True if valid. Otherwise, false.</returns>
         public Task<bool> IsValidActivityAsync(ITurnContext context)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(_messageExtensionAuth != null && _messageExtensionAuth.IsValidActivity(context));
         }
 
         /// <summary>
@@ -69,9 +94,23 @@ namespace Microsoft.Teams.AI
         /// <param name="state">The turn state</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>The sign in response</returns>
-        public Task<SignInResponse> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default)
+        public async Task<SignInResponse> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            TokenResponse tokenResponse = await UserTokenClientWrapper.GetUserTokenAsync(context, _settings.ConnectionName, "", cancellationToken);
+            if (tokenResponse != null && !string.IsNullOrEmpty(tokenResponse.Token))
+            {
+                return new SignInResponse(SignInStatus.Complete)
+                {
+                    Token = tokenResponse.Token
+                };
+            }
+
+            if ((_messageExtensionAuth != null && _messageExtensionAuth.IsValidActivity(context)))
+            {
+                return await _messageExtensionAuth.AuthenticateAsync(context);
+            }
+
+            throw new TeamsAIException("Incoming activity is not a valid activity to initiate authentication flow.");
         }
 
         /// <summary>
@@ -80,9 +119,9 @@ namespace Microsoft.Teams.AI
         /// <param name="context">The turn context</param>
         /// <param name="state">The turn state</param>
         /// <param name="cancellationToken">The cancellation token</param>
-        public Task SignOutUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default)
+        public async Task SignOutUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            await UserTokenClientWrapper.SignoutUserAsync(context, _settings.ConnectionName, cancellationToken);
         }
     }
 }
