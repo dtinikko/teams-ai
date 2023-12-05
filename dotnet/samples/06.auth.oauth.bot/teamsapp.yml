@@ -77,7 +77,7 @@ provision:
       content:
         BOT_ID: ${{BOT_ID}}
         BOT_PASSWORD: ${{SECRET_BOT_PASSWORD}}
-        OAUTH_CONNECTION_NAME: ${{OAUTH_CONNECTION_NAME}}
+        OAUTH_CONNECTION_NAME: graph-connection
         BOT_DOMAIN: ${{BOT_DOMAIN}}
         AAD_APP_TENANT_ID: ${{AAD_APP_TENANT_ID}}
         AAD_APP_OAUTH_AUTHORITY_HOST: ${{AAD_APP_OAUTH_AUTHORITY_HOST}}

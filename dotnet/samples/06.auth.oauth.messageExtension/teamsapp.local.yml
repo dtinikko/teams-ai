@@ -8,7 +8,7 @@ provision:
   - uses: teamsApp/create
     with:
       # Teams app name
-      name: BotAuth-${{TEAMSFX_ENV}}
+      name: ME-Auth-${{TEAMSFX_ENV}}
     # Write the information of created resources into environment file for
     # the specified environment variable(s).
     writeToEnvironmentFile: 
@@ -18,7 +18,7 @@ provision:
   - uses: aadApp/create
     with:
   # Note: when you run aadApp/update, the AAD app name will be updated based on the definition in manifest. If you don't want to change the name, make sure the name in AAD manifest is the same with the name defined here.
-      name: SsoAuthBot-${{TEAMSFX_ENV}}
+      name: ME-Auth-aad
       # If the value is false, the action will not generate client secret for you
       generateClientSecret: true
       # Authenticate users with a Microsoft work or school account in your organization's Azure AD tenant (for example, single tenant).
@@ -39,9 +39,6 @@ provision:
       outputFilePath : ./build/aad.manifest.${{TEAMSFX_ENV}}.json
 
   - uses: arm/deploy # Deploy given ARM templates parallelly.
-    env:
-      # an arbitrary name for the connection
-      OAUTH_CONNECTION_NAME: graph-connection
     with:
       # AZURE_SUBSCRIPTION_ID is a built-in environment variable,
       # if its value is empty, TeamsFx will prompt you to select a subscription.
@@ -61,14 +58,11 @@ provision:
           # variable before ARM deployment.
           parameters: ./infra/azure.parameters.local.json
           # Required when deploying ARM template
-          deploymentName: Create-resources-for-SsoAuthBot-${{TEAMSFX_ENV}}
+          deploymentName: Create-resources-for-MEAuthBot-${{TEAMSFX_ENV}}
       bicepCliVersion: v0.9.1
 
   # Generate runtime appsettings to JSON file
   - uses: file/createOrUpdateJsonFile
-    env:
-      # an arbitrary name for the connection
-      OAUTH_CONNECTION_NAME: graph-connection
     with:
       target: ./appsettings.Development.json
       content:
