@@ -7,6 +7,12 @@ import { config } from 'dotenv';
 import * as path from 'path';
 import * as restify from 'restify';
 
+import {
+    Application,
+    preview,
+    AI
+} from '@microsoft/teams-ai';
+
 // Import required bot services.
 // See https://aka.ms/bot-services to learn more about the different parts of a bot.
 import {
@@ -17,6 +23,8 @@ import {
     MemoryStorage,
     TurnContext
 } from 'botbuilder';
+
+const { AssistantsPlanner } = preview;
 
 // Read botFilePath and botFileSecret from .env file.
 const ENV_FILE = path.join(__dirname, '..', '.env');
@@ -75,10 +83,21 @@ interface ConversationState {
 }
 type ApplicationTurnState = TurnState<ConversationState>;
 
+// Create Assistant Planner
+const planner = new AssistantsPlanner({
+    apiKey: process.env.OPENAI_KEY!,
+    assistant_id: process.env.ASSISTANT_ID!
+});
+
+const aiOptions = {
+    planner
+}
+
 // Define storage and application
 const storage = new MemoryStorage();
 const app = new ApplicationBuilder<ApplicationTurnState>()
     .withStorage(storage)
+    .withAIOptions(aiOptions)
     .withAuthentication(adapter, {
         settings: {
             graph: {
@@ -110,17 +129,27 @@ app.message('/signout', async (context: TurnContext, state: ApplicationTurnState
     await context.sendActivity(`You have signed out`);
 });
 
+
+app.ai.action('healthcheck', async (context, state) => {
+    
+    console.log(state.temp.authTokens['graph']);
+
+    await context.sendActivity("Ran a health check!");
+    return `Ran a health check...`;
+});
+
+/*
 // Listen for ANY message to be received. MUST BE AFTER ANY OTHER MESSAGE HANDLERS
 app.activity(ActivityTypes.Message, async (context: TurnContext, state: ApplicationTurnState) => {
     // Increment count state
     let count = state.conversation.count ?? 0;
     state.conversation.count = ++count;
 
-    console.log(state.temp.authTokens['graph']);
-
+   
     // Echo back users request
     await context.sendActivity(`[${count}] you said: ${context.activity.text}`);
 });
+*/
 
 app.authentication.get('graph').onUserSignInSuccess(async (context: TurnContext, state: ApplicationTurnState) => {
     // Successfully logged in
