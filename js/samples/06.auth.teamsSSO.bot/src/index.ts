@@ -130,12 +130,41 @@ app.message('/signout', async (context: TurnContext, state: ApplicationTurnState
 });
 
 
-app.ai.action('healthcheck', async (context, state) => {
+app.ai.action('healthcheck', async (context: TurnContext, state: ApplicationTurnState) => {
     
+  console.log("health check!!!")
+
     console.log(state.temp.authTokens['graph']);
 
-    await context.sendActivity("Ran a health check!");
-    return `Ran a health check...`;
+    const secret = process.env.DISASTER_GPT_SECRET || ""
+
+    fetch('http://localhost:3001/authcheck', {
+        method: "GET",
+        headers: {
+          'x-botapp': 'true',
+          'DISASTER_GPT_SECRET': secret,
+          'token': state.temp.authTokens['graph']
+        }
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.text();
+    })
+    .then(async (data: string) => {
+      console.log(data); // Handle the response data
+
+      console.log("healthcheck result!",data)
+
+      await context.sendActivity(`Ran a health check with result: ${data}`);
+      return 'success'
+    })
+    .catch(async (error: Error) => {
+      await context.sendActivity(`Ran a health check with ERROR: ${JSON.stringify(error)}`);
+      console.error('There was an error!', error);
+      return 'error'
+    });
+  return 'ran health check'
 });
 
 /*
@@ -153,9 +182,9 @@ app.activity(ActivityTypes.Message, async (context: TurnContext, state: Applicat
 
 app.authentication.get('graph').onUserSignInSuccess(async (context: TurnContext, state: ApplicationTurnState) => {
     // Successfully logged in
-    await context.sendActivity('Successfully logged in');
-    await context.sendActivity(`Token string length: ${state.temp.authTokens['graph']!.length}`);
-    await context.sendActivity(`This is what you said before the AuthFlow started: ${context.activity.text}`);
+    await context.sendActivity('Successfully logged in.  Please repeat your last message to proceed');
+    //await context.sendActivity(`Token string length: ${state.temp.authTokens['graph']!.length}`);
+    //await context.sendActivity(`This is what you said before the AuthFlow started: ${context.activity.text}`);
 });
 
 app.authentication
